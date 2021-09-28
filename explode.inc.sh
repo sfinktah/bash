@@ -6,6 +6,8 @@ function explode
 	(( c < 2 )) && 
 	{
 		echo function "$0" is missing parameters 
+		echo "$0 <delimiter> <string> <limit>"
+		echo "result is in EXPLODED"
 		return 1
 	}
 

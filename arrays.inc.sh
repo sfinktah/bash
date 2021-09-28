@@ -7,6 +7,10 @@
 
 source include upvars explode
 
+shopt -s expand_aliases
+alias get_array_by_ref='e="$( declare -p ${1} )"; eval "declare -A E=${e#*=}"'
+alias get_indexed_array_by_ref='e="$( declare -p ${1} )"; eval "declare -a E=${e#*=}"'
+
 setifs() {
 	local newifs=${1-$'\x20\x09\x0a'}
 	IFS=$newifs
@@ -44,31 +48,6 @@ popifs() {
 	# echo popped IFS, $stacklen remain in stack
 }
 
-array_push() {
-	if (( $# < 2 )); then
-		echo "Usage: array_push ARRAY VAR [ VAR [ VAR ... ]]"
-		return 1
-	fi
-
-	# Method x.  The one I just came up with.
-	eval $1+=\(\$2\)
-	return
-
-	# Method 1.  The nastiest.
-	local a
-	a=$1; shift
-	if (( $# > 0 )); then
-		# eval "$a+=\(\\\"$*\\\"\)"									# it works, and *appears* to be save for dangerous values of $2 
-		
-		# XXX:dangerous?, $a could do damage if it's a space? 
-		# eval $a+='('$*')'
-		eval $a=\(\"\${@}\"\)  											# from 'upvar'
-	fi
-			
-
-
-	# echo "${a[0]}"
-}
 # $1 variable name to push
 push() {
 	_GLOBAL_STACK[${#_GLOBAL_STACK[*]}]=${1}		# push var to stack
@@ -127,10 +106,10 @@ _explode() {	# included form explode.inc.sh
 	pushifs $'\x07'
 	EXPLODED=($delin)
 	popifs
+	return 0
 }
 
 array_copy() {
-	echo $@
 	[ $# -lt 2 ] && echo copy missing $# parameters && return 1
 	# pushifs $'\x07'
 	# eval "$2"="$1"
@@ -138,7 +117,7 @@ array_copy() {
 	local dest=$1
 	shift
 
-	COPY= 
+	eval "$dest=()"
 	local ctr=0
 	while [ $# -gt 0 ]; do
 		eval "$dest[$ctr]=\"$1\""
@@ -147,6 +126,7 @@ array_copy() {
 	done
 }
 
+# usage: in_array needle "${ARRAY[@]}"
 in_array() {
 	needle="$1"
 	shift
@@ -160,8 +140,23 @@ in_array() {
 	return 1
 }
 
+array_find() {
+	needle="$1"
+	shift
+
+	local i
+	(( i = 0 ))
+	while [ $# -gt 0 ]; do
+		if [ "$needle" == "$1" ]; then
+			return $i
+		fi
+		(( ++i ))
+		shift
+	done
+	return -1 
+}
+
 array_copy_declare() {
-	echo $@
 	[ $# -lt 2 ] && echo copy_declare missing $# parameters && return 1
 	# pushifs $'\x07'
 	# eval "$2"="$1"
@@ -499,6 +494,10 @@ array_push() {
 		echo "Usage: array_push ARRAY VAR [ VAR [ VAR ... ]]"
 		return 1
 	fi
+	
+	# Method x.  The one I just came up with.
+	eval $1+=\(\$2\)
+	return
 
 	# Method 1.  The nastiest.
 	local a
@@ -516,7 +515,7 @@ array_push() {
 	# echo "${a[0]}"
 }
 
-in_array() {
+in_array_1() {
 	NEEDLE="$1"
 
 	pushifs
@@ -558,29 +557,34 @@ test_crap_2() {
 	array[5]="and bought a"
 	array+=( '"pig"' )
 
+
 	echo "${array[@]}"
 	# pinky went to porky town and bought a pig
+	array_count array; count=$?; echo $count elements in array
 
 	array_shift pigname array
+	array_count array; count=$?; echo $count elements in array
+
 	array_push array "sausage"
+	array_count array; count=$?; echo $count elements in array
 
 	echo the pigs name was $pigname
-	echo and he "${array[@]}"
-
+	echo and he bought a "${array[@]}"
 
 	# the pigs name was pinky
-	# and he went to porky town and bought a pig blanket
+	# and he went to porky town and bought a sausage
 
-	array_count array
-	count=$?
-	echo $count elements in array
 
 	declare -p array
 
 	array_push newarray "start"
+	declare -p newarray
 	array_push newarray "one"
+	declare -p newarray
 	array_push newarray '"two"'
+	declare -p newarray
 	array_push newarray 'three "4" five' 6 seven
+	declare -p newarray
 	array_push newarray "three" 4 "five" 
 	declare -p newarray
 

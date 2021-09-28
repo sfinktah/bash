@@ -1,4 +1,32 @@
 # http://stackoverflow.com/questions/64786/error-handling-in-bash/18118450#18118450
+debug()
+{
+    # Output info messages
+    # Color the output (unknown) if it's an interactive terminal
+    # @param $1...: Messages
+
+    test -t 1 && tput setf 3
+
+    printf '%s\n' "$@" >&2
+
+    test -t 1 && tput sgr0 # Reset terminal
+    true
+}
+
+info()
+{
+    # Output info messages
+    # Color the output (unknown) if it's an interactive terminal
+    # @param $1...: Messages
+
+    test -t 1 && tput setf 2
+
+    printf '%s\n' "$@" >&2
+
+    test -t 1 && tput sgr0 # Reset terminal
+    true
+}
+
 warning()
 {
     # Output warning messages

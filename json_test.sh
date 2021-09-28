@@ -279,7 +279,7 @@ function aaray2json_ref {
 }
 declare -A A='([a]="1" [b]="2" [c]="3" )'
 aaray2json_ref A
-echo $JSON
+declare -p JSON
 
 # test_crap
 # exit 0
