@@ -106,7 +106,7 @@ array.keys()
 {
 	(( $# )) || throw exception $FUNCNAME is missing an argument
 	get_array_by_ref
-   declare -p E
+	declare -p E
 	KEYS=( "${!E[@]}" )
 }
 
@@ -269,10 +269,10 @@ array.push()
 	getarg array_name && shift
 
 	local _a	# array
-	local _A # associative array
-	local _i # indirect reference
-	local _l # listed, eg: "one" "two" "three"
-	local _e # eval format (declare -p without the crap)
+	local _A	# associative array
+	local _i	# indirect reference
+	local _l	# listed, eg: "one" "two" "three"
+	local _e	# eval format (declare -p without the crap)
 	local _d	# full declare statement, including "declare -..."
 
 	local _verbose _quiet	# we don't use these, just as an example for when we copy the argument processing logic

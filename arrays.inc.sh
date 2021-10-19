@@ -5,7 +5,7 @@
 # BASEDIR[$$]="$( dirname "${BASH_SOURCE[1]}" )"
 # ${BASEDIR[$$]}/upvars.inc.sh
 
-source include upvars explode
+source include upvars explode string_between
 
 shopt -s expand_aliases
 alias get_array_by_ref='e="$( declare -p ${1} )"; eval "declare -A E=${e#*=}"'
@@ -59,23 +59,14 @@ push() {
 
 
 EXPLODED=
+IMPLODED=
 implode() {
 	local c=$#
 	(( c < 2 )) && 
 	{
-		echo implode missing $(( 2 - $# )) parameters
+		echo implode missing $(( 2 - $# )) parameters >&2
 		return 1
 	}
-
-	# couldn't find a way to pass it properly, so we're doing the same declare trick, but it's done inside the function.
-	# def="$( declare -p $2 )"
-	# eval "declare -a func_assoc_array="${def#*=}
-	# declare -p func_assoc_array
-
-	# Copying an array.
-	#array2=( "${array1[@]}" )
-	# or
-	# array2="${array1[@]}"
 
 	local implode_with="$1"
 	shift
@@ -610,5 +601,24 @@ test_crap_2() {
 	declare -p newarray
 }
 
+test_url_explosion() {
+    url='https://packages.microsoft.com/config/ubuntu/20.04/whatever'
+	explode '/' "$url"
+	declare -p EXPLODED
+	implode '/' "${EXPLODED[@]:0:5}"
+	IMPLODED+=/
+	declare -p IMPLODED
+	VERSIONS=( $(
+	while read -r line; do
+		# line='<a href="14.04/">14.04/</a>                                             25-Feb-2020 18:54                   -'
+		string_between '<a href="' '/">' "$line"
+		if [[ $REPLY != "" && ${REPLY:0:1} != "." ]]; then
+			echo "$REPLY"
+		fi
+	done < <( curl -s "$IMPLODED" )
+	) )
+	echo "Versions: ${VERSIONS[@]}"
+}
 
 # test_crap_2
+test_url_explosion
