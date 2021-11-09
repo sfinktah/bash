@@ -11,11 +11,6 @@ shopt -s expand_aliases
 alias get_array_by_ref='e="$( declare -p ${1} )"; eval "declare -A E=${e#*=}"'
 alias get_indexed_array_by_ref='e="$( declare -p ${1} )"; eval "declare -a E=${e#*=}"'
 
-setifs() {
-	local newifs=${1-$'\x20\x09\x0a'}
-	IFS=$newifs
-}
-
 # Example of usage:
 # explode "e-" "apple-pie-kandy"
 # declare -p EXPLODED
@@ -34,6 +29,12 @@ pop() {
 
 declare -a _IFS_STACK=()
 declare -a _GLOBAL_STACK=()
+
+setifs() {
+	local newifs=${1-$'\x20\x09\x0a'}
+	IFS=$newifs
+}
+
 pushifs() {
 	_IFS_STACK[${#_IFS_STACK[*]}]=$IFS		# push the current IFS into the stack
 	[ $# -gt 0 ] && IFS=${1}						# set IFS from argument (if there is one)
