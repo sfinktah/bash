@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-. include explode realpath warning
+. include explode realpath # warning
 
 function dospath
 { 
@@ -59,10 +59,10 @@ function dfc
 		local type=${BASH_REMATCH[3]}	# We'll not be using this
 		local options=${BASH_REMATCH[4]}	# We'll not be using this
 
-		debug "disk:$disk mount:$mount"
+		# debug "disk:$disk mount:$mount"
 
 		[[ $here == $mount* ]] && {
-			debug "len(mount):${#mount}"
+			# debug "len(mount):${#mount}"
 			(( ${#mount} > ${#match} )) && match=$mount matchdev=$disk
 		}
 	done < <( mount )

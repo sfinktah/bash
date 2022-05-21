@@ -1,13 +1,31 @@
-. include explode
+. include upvars explode
 
 strpos() { 
-  x="${1%%$2*}"
-  [[ "$x" = "$1" ]] && echo -1 || echo "${#x}"
+  haystack=$1
+  needle=${2//\*/\\*}
+  x="${haystack%%$needle*}"
+  [[ "$x" = "$haystack" ]] && { echo -1; return 1; } || echo "${#x}"
 }
 
 strrpos() { 
-  x="${1%$2*}"
-  [[ "$x" = "$1" ]] && echo -1 || echo "${#x}"
+  haystack=$1
+  needle=${2//\*/\\*}
+  x="${haystack%$needle*}"
+  [[ "$x" = "$haystack" ]] && { echo -1; return 1 ;} || echo "${#x}"
+}
+
+startswith() { 
+  haystack=$1
+  needle=${2//\*/\\*}
+  x="${haystack#$needle}"
+  [[ "$x" = "$haystack" ]] && return 1 || return 0
+}
+
+endswith() { 
+  haystack=$1
+  needle=${2//\*/\\*}
+  x="${haystack%$needle}"
+  [[ "$x" = "$haystack" ]] && return 1 || return 0
 }
 
 _string_find_common() {
@@ -33,8 +51,53 @@ _string_rfind() {
     _string_find_common strrpos "$@"
 }
 
-string_between() {
-cat > /dev/null <<END
+invalid_args() {
+    cat <<'END'
+string_between: string_between [-v var] left right subject [start=0] 
+                               [end=None] [repl=None] [inclusive=0] 
+                               [greedy=0] [rightmost=0] [retn_all_on_fail=0]
+    Return the string between `left` and `right`.
+
+    Return the substring `sub` delineated by being between the
+    strings `left` and `right`, and optionally such that sub is 
+    contained within subject[start:end]. `start` and `end` are 
+    interpreted as python slice notation.
+
+    If -v is not supplied, `sub` is stored in the REPLY variable.
+
+    If -s is specified, the result is returned on the standard
+    output instead of in a variable.
+
+    Options:
+      -v var    assign the result to shell variable VAR 
+      -i file   read input from file or '-' to read from 
+                the standard input
+      -s        display the result on the standard output
+      --        end -option processing
+
+    If no substring is found, and either the replace option `repl` 
+    or `retn_all_on_fail` option are specified, `subject` is 
+    returned.
+
+    If the substring is found, and `repl` is specified, the result 
+    will be `subject` with `sub` replaced by `repl`, otherwise
+    the matching substring `sub` is returned.
+
+    Exit Status:
+    The return code is always zero.
+
+    Example:
+        $ string_between "the" "with" "thecatinthematwiththehatwithoutme" \
+              greedy=1 inclusive=1
+        $ echo $REPLY
+        thecatinthematwiththehatwith
+END
+    return 1
+}
+
+string_between () 
+{ 
+    cat > /dev/null <<END
     string_between(left, right, subject, [,start [,end]] [,greedy=False] [,inclusive=False] [,repl=None] [,retn_all_on_fail=False] [,retn_class=False] [,rightmost=False]) -> str
 
 
@@ -84,179 +147,167 @@ cat > /dev/null <<END
     '[fox] jumps _over_ the **lazy** [dog]'
 
 END
-    # get kwargs into variables
-    local -A default_arguments=(
-        [start]=0
-        [end]=None
-        [repl]=None
-        [inclusive]=0
-        [greedy]=0
-        [rightmost]=0
-        [retn_all_on_fail]=0
-        [retn_class]=0
-    )
-    # regex for manipulating named variables
-    # start|end|inclusive|greedy|rightmost|repl|retn_all_on_fail|retn_class|
-    # left, right, subject, start=0, end=None, inclusive=False, greedy=False, rightmost=False, repl=None, retn_all_on_fail=False, retn_class=False
-    # vim regex for above: s/\(\w\+\)=\([^ ,]\+\)/.../g
 
-    local left=$1; shift || invalid_args
-    local right=$1; shift || invalid_args
-    local subject=$1; shift || invalid_args
-    ROFFSET=
-
-    while :; do
-        arg=$1
-        shift || break
-        explode "=" "$arg"
-        local -i len=${#EXPLODED[@]}
-        (( len == 2 )) || { echo "invalid len"; break; }
-        k=${EXPLODED[0]}
-        v=${EXPLODED[1]}
-        [[ ${default_arguments[$k]} == '' ]] && { echo "invalid argument key"; break; }
-        default_arguments[$k]=$v
-    done
-
-    # declare -p default_arguments
-
-    # start end repl inclusive greedy rightmost retn_all_on_fail retn_class
-
-    for KEY in "${!default_arguments[@]}"; do
-        VALUE=${default_arguments[$KEY]}
-        local "$KEY"="$VALUE"
-    done
-
-    # r = len(subject) - v.start
-    local -i subject_len=${#subject}
-    local -i llen
-    local -i rlen
-    local -i l=-2
-    local -i r; (( r = subject_len - start ))
-
-    [[ $end == "None" ]] && end=$subject_len
-
-    #    l = -2
-    #    if v.rightmost:
-    #        v.greedy = True
-    #        if not right:
-    #            llen, l = _string_rfind(subject, left, v.start, v.end)
-    #
-    #    if l == -2:
-    #        llen, l = _string_find(subject, left, v.start, v.end)
-    #    
-    #    result = StringBetweenResult(l, None, subject, v.retn_class)
-    #    if not ~l:
-    #        if v.repl is not None or v.retn_all_on_fail: return result.ret(subject, l)
-    #        return result.ret(None, l)
-    #
-    #    if right:
-    #        if v.greedy:
-    #            rlen, r = _string_rfind(subject, right, v.start, v.end)
-    #            if v.rightmost and ~r:
-    #                llen, l = _string_rfind(subject, left, v.start, r)
-    #        else:
-    #            rlen, r = _string_find(subject, right, l + llen, v.end)
-    #    else:
-    #        rlen = 0
-
-    if (( rightmost )); then
-        greedy=1
-        if [[ right == '' ]]; then
-            # llen, l = _string_rfind(subject, left, v.start, v.end)
-            _string_rfind "$subject" "$left" "$start" "$end"
-            llen=$NEEDLE_LEN
-            l=$NEEDLE_POS
+    local -A default_arguments=([start]=0 [end]=None [repl]=None [inclusive]=0 [greedy]=0 [rightmost]=0 [retn_all_on_fail]=0 [retn_class]=0 [upvar]=REPLY [infile]=)
+    local option_processing=1;
+    while (( option_processing )); do
+        case "$1" in 
+            -v)
+                shift;
+                default_arguments[upvar]=$1;
+                shift
+            ;;
+            -s)
+                default_arguments[upvar]=/dev/stdout;
+                shift
+            ;;
+            -i)
+                shift;
+                default_arguments[infile]=$1;
+                shift
+            ;;
+            --)
+                option_processing=0;
+                shift
+            ;;
+            *)
+                option_processing=0
+            ;;
+        esac;
+    done;
+    local left=$1;
+    shift || invalid_args;
+    local right=$1;
+    shift || invalid_args;
+    local subject
+    if [ -n "${default_arguments[infile]}" ]; then
+        if [ "${default_arguments[infile]}" = "-" ]; then
+            default_arguments[infile]="/dev/stdin"
         fi
+        subject=$(cat "${default_arguments[infile]}"; echo -ne '\r'); subject=${subject%\r}
+    else
+        subject=$1;
+        shift || invalid_args;
     fi
-
+    ROFFSET=;
+    while :; do
+        arg=$1;
+        shift || break;
+        explode "=" "$arg";
+        local -i len=${#EXPLODED[@]};
+        (( len == 2 )) || { 
+            echo "trailing or invalid arguments";
+            break
+        };
+        k=${EXPLODED[0]};
+        v=${EXPLODED[1]};
+        [[ ${default_arguments[$k]} == '' ]] && { 
+            echo "invalid argument key";
+            break
+        };
+        default_arguments[$k]=$v;
+    done;
+    for KEY in "${!default_arguments[@]}";
+    do
+        VALUE=${default_arguments[$KEY]};
+        local "$KEY"="$VALUE";
+    done;
+    local -i subject_len=${#subject};
+    local -i llen;
+    local -i rlen;
+    local -i l=-2;
+    local -i r;
+    (( r = subject_len - start ));
+    [[ $end == "None" ]] && end=$subject_len;
+    if (( rightmost )); then
+        greedy=1;
+        if [[ right == '' ]]; then
+            _string_rfind "$subject" "$left" "$start" "$end";
+            llen=$NEEDLE_LEN;
+            l=$NEEDLE_POS;
+        fi;
+    fi;
     if (( l == -2 )); then
-        _string_find "$subject" "$left" "$start" "$end"
-        llen=$NEEDLE_LEN
-        l=$NEEDLE_POS
-        # declare -p NEEDLE_LEN NEEDLE_POS
-    fi
-
-    # if not ~l
+        _string_find "$subject" "$left" "$start" "$end";
+        llen=$NEEDLE_LEN;
+        l=$NEEDLE_POS;
+    fi;
     if (( l == -1 )); then
         if [[ $repl != "None" || $retn_all_on_fail != 0 ]]; then
-            REPLY=${subject:$l}
-            OFFSET=$l
-            return
-        fi
-        REPLY=
-        OFFSET=$l
-        return
-    fi
-
+            result "${default_arguments[upvar]}" "${subject:$l}";
+            OFFSET=$l;
+            return;
+        fi;
+        result "${default_arguments[upvar]}" "";
+        OFFSET=$l;
+        return;
+    fi;
     if [[ $right != "" ]]; then
         if (( greedy )); then
-            _string_rfind "$subject" "$right" "$start" "$end"
-            rlen=$NEEDLE_LEN
-            r=$NEEDLE_POS
+            _string_rfind "$subject" "$right" "$start" "$end";
+            rlen=$NEEDLE_LEN;
+            r=$NEEDLE_POS;
             if (( rightmost && r > -1 )); then
-                _string_rfind "$subject" "$left" "$start" "$r"
-                llen=$NEEDLE_LEN
-                l=$NEEDLE_POS
-            fi
+                _string_rfind "$subject" "$left" "$start" "$r";
+                llen=$NEEDLE_LEN;
+                l=$NEEDLE_POS;
+            fi;
         else
-            _string_find "$subject" "$right" "$(( l + llen ))" "$end"
-            rlen=$NEEDLE_LEN
-            r=$NEEDLE_POS
-        fi
+            _string_find "$subject" "$right" "$(( l + llen ))" "$end";
+            rlen=$NEEDLE_LEN;
+            r=$NEEDLE_POS;
+        fi;
     else
-        rlen=0
-    fi
-
-
-    #    if not ~r or r < l + llen:
-    #        if v.repl is not None or v.retn_all_on_fail: return result.ret(subject, l, r)
-    #        return result.ret('', l, r)
-    #    if v.inclusive and r:
-    #        r += rlen
-    #    else:
-    #        l += llen
-    #    if v.repl is None:
-    #        return result.ret(subject[l:r], l, r)
-    #    if callable(v.repl):
-    #        return result.ret(subject[0:l] + v.repl(subject[l:r]) + subject[r:], l, r)
-    #    return result.ret(subject[0:l] + v.repl + subject[r:], l, r)
-
+        rlen=0;
+    fi;
     if (( r == -1 || r < ( l + llen ) )); then
         if [[ $repl != "None" || retn_all_on_fail != 0 ]]; then
-            REPLY=$subject
-            OFFSET=$l
-            ROFFSET=$r
-            return
-        fi
-        REPLY=
-        OFFSET=$l
-        ROFFSET=$r
-        return
-    fi
-
+            result "${default_arguments[upvar]}" "$subject";
+            OFFSET=$l;
+            ROFFSET=$r;
+            return;
+        fi;
+        result "${default_arguments[upvar]}" "";
+        OFFSET=$l;
+        ROFFSET=$r;
+        return;
+    fi;
     if (( inclusive && r )); then
-        (( r += rlen ))
+        (( r += rlen ));
     else
-        (( l += llen ))
-    fi
-
+        (( l += llen ));
+    fi;
     if [[ $repl == "None" ]]; then
-        REPLY=${subject:$l:$((r-l))}
-        OFFSET=$l
-        ROFFSET=$r
-        return
-    fi
-
-    # if callable $repl
-    #        return result.ret(subject[0:l] + v.repl(subject[l:r]) + subject[r:], l, r)
-
-    REPLY="${subject:0:$l}${repl}${subject:$r}"
-    OFFSET=$l
-    ROFFSET=$r
+        result "${default_arguments[upvar]}" "${subject:$l:$((r-l))}";
+        OFFSET=$l;
+        ROFFSET=$r;
+        return;
+    fi;
+    result "${default_arguments[upvar]}" "${subject:0:$l}${repl}${subject:$r}";
+    OFFSET=$l;
+    ROFFSET=$r;
     return
+}
+# vim: set ts=4 sts=0 sw=0 et:
+
+result () {
+    local __name=$1
+    local __value=$2
+    if startswith "$__name" /; then
+        echo "$__value"
+    else
+        local $__name && upvar $__name "$__value"
+    fi
+}
+
+string_between_pipe() {
+    exec 3<&0
+    while IFS='$\n' read -u 3 -r line || [[ -n "$line" ]]; do
+        string_between -s "$@" "$line"
+    done
 }
 
 
 # string_between "c" "t" "thecatinthematwiththehat" start=7 end=9 greedy=1 why=9
-string_between "the" "with" "thecatinthematwiththehatwithoutme" greedy=1 inclusive=1
-declare -p REPLY OFFSET ROFFSET
+# string_between "the" "with" "thecatinthematwiththehatwithoutme" greedy=1 inclusive=1
+# declare -p REPLY OFFSET ROFFSET
